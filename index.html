@@ -1,1 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CHIP-8 Emulator (browser)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#111; color:#eee; padding:18px; }
+    header { display:flex; gap:12px; align-items:center; }
+    button, input[type=file], select { padding:8px 12px; border-radius:8px; border:0; background:#222; color:#eee; }
+    #screen { image-rendering: pixelated; border: 4px solid #333; display:block; margin:18px 0; width:640px; height:320px; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    .note { color:#bbb; font-size:0.9rem; margin-top:10px; }
+    .rom-list { margin-top:6px; }
+    .dropzone { border:2px dashed #333; padding:12px; border-radius:8px; text-align:center; color:#aaa; margin-top:10px; }
+    a { color:#8ef; }
+    .kbd { background:#222; padding:4px 8px; border-radius:6px; color:#fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CHIP-8 Emulator</h1>
+  </header>
+
+  <p>A small CHIP-8 emulator that runs in your browser. Load a ROM with the file picker, drag & drop, or select the demo ROM.</p>
+
+  <canvas id="screen" width="64" height="32"></canvas>
+
+  <div class="controls">
+    <input id="filePicker" type="file" accept=".ch8,.bin" />
+    <button id="btnDemo">Load Demo ROM (embedded)</button>
+    <label>
+      Load ROM from URL:
+      <input id="romUrl" placeholder="https://…/myrom.ch8" style="width:260px" />
+    </label>
+    <button id="btnLoadFromUrl">Load URL</button>
+    <div style="margin-left:auto;">
+      <button id="btnReset">Reset</button>
+      <button id="btnPause">Pause</button>
+    </div>
+  </div>
+
+  <div class="dropzone" id="dropzone">Drag & drop a .ch8 file here</div>
+
+  <div class="note">
+    Keyboard mapping: the emulator maps CHIP-8 hex keypad to your keyboard as follows:
+    <div class="kbd">1 2 3 4</div> → CHIP-8 keys <code>1 2 3 C</code>, etc. (See README for full mapping.)
+  </div>
+
+  <script src="chip8.js"></script>
+  <script>
+    // UI wiring: file picker, drag/drop, URL load, demo load
+    const canvas = document.getElementById('screen');
+    const filePicker = document.getElementById('filePicker');
+    const dropzone = document.getElementById('dropzone');
+    const btnDemo = document.getElementById('btnDemo');
+    const btnLoadFromUrl = document.getElementById('btnLoadFromUrl');
+    const romUrl = document.getElementById('romUrl');
+    const btnReset = document.getElementById('btnReset');
+    const btnPause = document.getElementById('btnPause');
+
+    const chip8 = new CHIP8(canvas);
+    let running = true;
+
+    function loadArrayBuffer(ab) {
+      chip8.reset();
+      chip8.loadROM(new Uint8Array(ab));
+      chip8.start();
+    }
+
+    filePicker.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => loadArrayBuffer(reader.result);
+      reader.readAsArrayBuffer(f);
+    });
+
+    // Drag & drop
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.style.borderColor = '#555'; });
+    dropzone.addEventListener('dragleave', e => { dropzone.style.borderColor = '#333'; });
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.style.borderColor = '#333';
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => loadArrayBuffer(reader.result);
+      reader.readAsArrayBuffer(f);
+    });
+
+    // Demo ROM embedded (Base64)
+    btnDemo.addEventListener('click', async () => {
+      // small built-in demo (public-domain / synthetic) — draws some pattern
+      const b64 = "QkNIRQAAABAAAAAAAP8AAP8A"; // tiny placeholder bytes (not real CHIP-8 game) — the emulator handles minimal bytes
+      const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      loadArrayBuffer(raw.buffer);
+    });
+
+    btnLoadFromUrl.addEventListener('click', async () => {
+      const url = romUrl.value.trim();
+      if (!url) { alert('Enter a ROM URL'); return; }
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Unable to fetch ROM (CORS or 404).');
+        const ab = await resp.arrayBuffer();
+        loadArrayBuffer(ab);
+      } catch (err) {
+        alert('Error loading ROM from URL: ' + err.message + '\nNote: the server must allow CORS.');
+      }
+    });
+
+    btnReset.addEventListener('click', () => { chip8.reset(); });
+    btnPause.addEventListener('click', () => {
+      running = !running;
+      chip8.setPaused(!running);
+      btnPause.textContent = running ? 'Pause' : 'Resume';
+    });
+
+    // Start with a blank state (so canvas shows something)
+    chip8.reset();
+    chip8.start();
+  </script>
+</body>
+</html>
 
